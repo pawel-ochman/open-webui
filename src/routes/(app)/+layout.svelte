@@ -56,7 +56,7 @@
 	onMount(async () => {
 		if ($user === undefined) {
 			await goto('/auth');
-		} else if (['user', 'admin'].includes($user.role)) {
+		} else if (($config?.roles || []).includes($user.role)) {
 			try {
 				// Check if IndexedDB exists
 				DB = await openDB('Chats', 1);

@@ -6,6 +6,7 @@
 
 	import Modal from '../common/Modal.svelte';
 	import { WEBUI_BASE_URL } from '$lib/constants';
+	import { config } from '$lib/stores';
 
 	const i18n = getContext('i18n');
 	const dispatch = createEventDispatcher();
@@ -176,9 +177,9 @@
 										placeholder={$i18n.t('Enter Your Role')}
 										required
 									>
-										<option value="pending"> {$i18n.t('pending')} </option>
-										<option value="user"> {$i18n.t('user')} </option>
-										<option value="admin"> {$i18n.t('admin')} </option>
+										{#each  $config?.roles || [] as role}
+											<option value="{role}"> {$i18n.t(role)} </option> 
+										{/each}
 									</select>
 								</div>
 							</div>

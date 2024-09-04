@@ -122,6 +122,7 @@ from config import (
     ENABLE_ADMIN_CHAT_ACCESS,
     AppConfig,
     CORS_ALLOW_ORIGIN,
+    USER_ROLES,
 )
 
 from constants import ERROR_MESSAGES, WEBHOOK_MESSAGES, TASKS
@@ -1907,6 +1908,7 @@ async def get_app_config(request: Request):
                 for name, config in OAUTH_PROVIDERS.items()
             }
         },
+        "roles": USER_ROLES.value,
         "features": {
             "auth": WEBUI_AUTH,
             "auth_trusted_header": bool(webui_app.state.AUTH_TRUSTED_EMAIL_HEADER),
@@ -2105,6 +2107,12 @@ async def oauth_callback(provider: str, request: Request, response: Response):
     # Check if the user exists
     user = Users.get_user_by_oauth_sub(provider_sub)
 
+    default_role = webui_app.state.config.DEFAULT_USER_ROLE
+
+    # inherit default role from provider
+    if 'roles' in user_data and len(user_data['roles']) > 0:
+        default_role = user_data['roles'][0]
+
     if not user:
         # If the user does not exist, check if merging is enabled
         if OAUTH_MERGE_ACCOUNTS_BY_EMAIL.value:
@@ -2147,7 +2155,7 @@ async def oauth_callback(provider: str, request: Request, response: Response):
             role = (
                 "admin"
                 if Users.get_num_users() == 0
-                else webui_app.state.config.DEFAULT_USER_ROLE
+                else default_role
             )
             user = Auths.insert_new_auth(
                 email=email,

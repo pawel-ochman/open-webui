@@ -11,6 +11,7 @@ import jwt
 import uuid
 import logging
 from env import WEBUI_SECRET_KEY
+from config import USER_ROLES
 
 logging.getLogger("passlib").setLevel(logging.ERROR)
 
@@ -125,7 +126,7 @@ def get_current_user_by_api_key(api_key: str):
 
 
 def get_verified_user(user=Depends(get_current_user)):
-    if user.role not in {"user", "admin"}:
+    if user.role not in USER_ROLES.value:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=ERROR_MESSAGES.ACCESS_PROHIBITED,

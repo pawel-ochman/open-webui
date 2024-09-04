@@ -1510,3 +1510,9 @@ AUDIO_TTS_SPLIT_ON = PersistentConfig(
     "audio.tts.split_on",
     os.getenv("AUDIO_TTS_SPLIT_ON", "punctuation"),
 )
+
+USER_ROLES = PersistentConfig(
+    "USER_ROLES",
+    "auth.user_roles",
+    os.getenv("USER_ROLES", "user;admin;pending").split(";"),
+)

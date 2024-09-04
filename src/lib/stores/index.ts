@@ -179,6 +179,7 @@ type Config = {
 			[key: string]: string;
 		};
 	};
+	roles: string[]
 };
 
 type PromptSuggestion = {
