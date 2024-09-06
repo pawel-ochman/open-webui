@@ -21,7 +21,7 @@ from langchain.retrievers import (
 from typing import Optional
 
 from utils.misc import get_last_user_message, add_or_update_system_message
-from config import SRC_LOG_LEVELS, CHROMA_CLIENT
+from config import SRC_LOG_LEVELS, VECTOR_DB_CLIENT
 
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["RAG"])
@@ -34,7 +34,7 @@ def query_doc(
     k: int,
 ):
     try:
-        collection = CHROMA_CLIENT.get_collection(name=collection_name)
+        collection = VECTOR_DB_CLIENT.get_collection(name=collection_name)
         query_embeddings = embedding_function(query)
 
         result = collection.query(
@@ -57,7 +57,7 @@ def query_doc_with_hybrid_search(
     r: float,
 ):
     try:
-        collection = CHROMA_CLIENT.get_collection(name=collection_name)
+        collection = VECTOR_DB_CLIENT.get_collection(name=collection_name)
         documents = collection.get()  # get all documents
 
         bm25_retriever = BM25Retriever.from_texts(
@@ -88,15 +88,16 @@ def query_doc_with_hybrid_search(
         )
 
         result = compression_retriever.invoke(query)
+
         result = {
             "distances": [[d.metadata.get("score") for d in result]],
             "documents": [[d.page_content for d in result]],
             "metadatas": [[d.metadata for d in result]],
         }
 
-        log.info(f"query_doc_with_hybrid_search:result {result}")
         return result
     except Exception as e:
+        log.exception(e)
         raise e
 
 
@@ -270,6 +271,7 @@ def get_rag_context(
             continue
 
         try:
+            log.info(f"querying {collection_names} with {query} for file {file}")
             if file["type"] == "text":
                 context = file["content"]
             else:

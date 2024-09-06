@@ -13,6 +13,7 @@ import requests
 import mimetypes
 import shutil
 import inspect
+import uvicorn
 from typing import Optional
 
 from fastapi import FastAPI, Request, Depends, status, UploadFile, File, Form
@@ -122,6 +123,7 @@ from config import (
     ENABLE_ADMIN_CHAT_ACCESS,
     AppConfig,
     CORS_ALLOW_ORIGIN,
+    USER_ROLES,
 )
 
 from constants import ERROR_MESSAGES, WEBHOOK_MESSAGES, TASKS
@@ -469,7 +471,6 @@ async def chat_completion_files_handler(body) -> tuple[dict, dict[str, list]]:
             r=rag_app.state.config.RELEVANCE_THRESHOLD,
             hybrid_search=rag_app.state.config.ENABLE_RAG_HYBRID_SEARCH,
         )
-
         log.debug(f"rag_contexts: {contexts}, citations: {citations}")
 
     return body, {"contexts": contexts, "citations": citations}
@@ -602,6 +603,9 @@ class ChatCompletionMiddleware(BaseHTTPMiddleware):
         modified_body_bytes = json.dumps(body).encode("utf-8")
         # Replace the request body with the modified one
         request._body = modified_body_bytes
+
+        log.info(f"Modified body: {modified_body_bytes}")
+        log.info(f"dumps body: {json.dumps(body)}")
         # Set custom header to ensure content-length matches new body length
         request.headers.__dict__["_list"] = [
             (b"content-length", str(len(modified_body_bytes)).encode("utf-8")),
@@ -1907,6 +1911,7 @@ async def get_app_config(request: Request):
                 for name, config in OAUTH_PROVIDERS.items()
             }
         },
+        "roles": USER_ROLES.value,
         "features": {
             "auth": WEBUI_AUTH,
             "auth_trusted_header": bool(webui_app.state.AUTH_TRUSTED_EMAIL_HEADER),
@@ -2105,6 +2110,12 @@ async def oauth_callback(provider: str, request: Request, response: Response):
     # Check if the user exists
     user = Users.get_user_by_oauth_sub(provider_sub)
 
+    default_role = webui_app.state.config.DEFAULT_USER_ROLE
+
+    # inherit default role from provider
+    if 'roles' in user_data and len(user_data['roles']) > 0:
+        default_role = user_data['roles'][0]
+
     if not user:
         # If the user does not exist, check if merging is enabled
         if OAUTH_MERGE_ACCOUNTS_BY_EMAIL.value:
@@ -2147,7 +2158,7 @@ async def oauth_callback(provider: str, request: Request, response: Response):
             role = (
                 "admin"
                 if Users.get_num_users() == 0
-                else webui_app.state.config.DEFAULT_USER_ROLE
+                else default_role
             )
             user = Auths.insert_new_auth(
                 email=email,
@@ -2258,3 +2269,6 @@ else:
     log.warning(
         f"Frontend build directory not found at '{FRONTEND_BUILD_DIR}'. Serving API only."
     )
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8080)

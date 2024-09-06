@@ -80,6 +80,8 @@ def run_migrations():
     except Exception as e:
         print(f"Error: {e}")
 
+    print("Running migrations - done")
+
 
 run_migrations()
 
@@ -1081,24 +1083,42 @@ RAG_RERANKING_MODEL_TRUST_REMOTE_CODE = (
 )
 
 
-if CHROMA_HTTP_HOST != "":
-    CHROMA_CLIENT = chromadb.HttpClient(
-        host=CHROMA_HTTP_HOST,
-        port=CHROMA_HTTP_PORT,
-        headers=CHROMA_HTTP_HEADERS,
-        ssl=CHROMA_HTTP_SSL,
-        tenant=CHROMA_TENANT,
-        database=CHROMA_DATABASE,
-        settings=Settings(allow_reset=True, anonymized_telemetry=False),
-    )
-else:
-    CHROMA_CLIENT = chromadb.PersistentClient(
-        path=CHROMA_DATA_PATH,
-        settings=Settings(allow_reset=True, anonymized_telemetry=False),
-        tenant=CHROMA_TENANT,
-        database=CHROMA_DATABASE,
-    )
+VECTOR_DB_CLIENT = None
 
+VECTOR_DB_TYPE = os.environ.get("VECTOR_DB_TYPE", "chroma")
+log.info(f"Vector DB type: {VECTOR_DB_TYPE}")
+
+if VECTOR_DB_TYPE == "chroma":
+    if CHROMA_HTTP_HOST != "":
+        from apps.rag.vector.chroma_client import ChromaClientWeb
+        VECTOR_DB_CLIENT = ChromaClientWeb(
+            host=CHROMA_HTTP_HOST,
+            port=CHROMA_HTTP_PORT,
+            headers=CHROMA_HTTP_HEADERS,
+            ssl=CHROMA_HTTP_SSL,
+            tenant=CHROMA_TENANT,
+            database=CHROMA_DATABASE,
+        )
+    else:
+        from apps.rag.vector.chroma_client import ChromaClient
+        VECTOR_DB_CLIENT = ChromaClient(
+            path=CHROMA_DATA_PATH,
+            tenant=CHROMA_TENANT,
+            database=CHROMA_DATABASE
+        )
+
+if VECTOR_DB_TYPE == "qdrant":
+    from apps.rag.vector.qdrant import QDrantClient
+
+    QDRANT_URL = os.environ.get("QDRANT_URL", "")
+    QDRANT_PORT = int(os.environ.get("QDRANT_PORT", "6333"))
+
+    log.info(f"Qdrant URL: {QDRANT_URL}:{QDRANT_PORT}")
+
+    VECTOR_DB_CLIENT = QDrantClient(
+        url=QDRANT_URL,
+        port=QDRANT_PORT,
+    )
 
 # device type embedding models - "cpu" (default), "cuda" (nvidia gpu required) or "mps" (apple silicon) - choosing this right can lead to better performance
 USE_CUDA = os.environ.get("USE_CUDA_DOCKER", "false")
@@ -1509,4 +1529,10 @@ AUDIO_TTS_SPLIT_ON = PersistentConfig(
     "AUDIO_TTS_SPLIT_ON",
     "audio.tts.split_on",
     os.getenv("AUDIO_TTS_SPLIT_ON", "punctuation"),
+)
+
+USER_ROLES = PersistentConfig(
+    "USER_ROLES",
+    "auth.user_roles",
+    os.getenv("USER_ROLES", "user;admin;pending").split(";"),
 )

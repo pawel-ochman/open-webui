@@ -15,7 +15,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Union, Sequence, Iterator, Any
 
-from chromadb.utils.batch_utils import create_batches
 from langchain_core.documents import Document
 
 from langchain_community.document_loaders import (
@@ -110,7 +109,7 @@ from config import (
     RAG_OPENAI_API_BASE_URL,
     RAG_OPENAI_API_KEY,
     DEVICE_TYPE,
-    CHROMA_CLIENT,
+    VECTOR_DB_CLIENT,
     CHUNK_SIZE,
     CHUNK_OVERLAP,
     RAG_TEMPLATE,
@@ -954,7 +953,7 @@ def store_web_search(form_data: SearchForm, user=Depends(get_verified_user)):
 def store_data_in_vector_db(
     data, collection_name, metadata: Optional[dict] = None, overwrite: bool = False
 ) -> bool:
-
+    log.info(f"store_data_in_vector_db {collection_name}")
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=app.state.config.CHUNK_SIZE,
         chunk_overlap=app.state.config.CHUNK_OVERLAP,
@@ -962,9 +961,9 @@ def store_data_in_vector_db(
     )
 
     docs = text_splitter.split_documents(data)
-
+    log.info(f"store_data_in_vector_db {len(docs)}")
     if len(docs) > 0:
-        log.info(f"store_data_in_vector_db {docs}")
+        # log.info(f"store_data_in_vector_db {docs}")
         return store_docs_in_vector_db(docs, collection_name, metadata, overwrite), None
     else:
         raise ValueError(ERROR_MESSAGES.EMPTY_CONTENT)
@@ -985,10 +984,13 @@ def store_text_in_vector_db(
 def store_docs_in_vector_db(
     docs, collection_name, metadata: Optional[dict] = None, overwrite: bool = False
 ) -> bool:
-    log.info(f"store_docs_in_vector_db {docs} {collection_name}")
+    log.info(f"inside store_docs_in_vector_db {collection_name}")
 
     texts = [doc.page_content for doc in docs]
     metadatas = [{**doc.metadata, **(metadata if metadata else {})} for doc in docs]
+
+    collections = VECTOR_DB_CLIENT.list_collections()
+    log.info(f"collections {collections}")
 
     # ChromaDB does not like datetime formats
     # for meta-data so convert them to string.
@@ -999,12 +1001,12 @@ def store_docs_in_vector_db(
 
     try:
         if overwrite:
-            for collection in CHROMA_CLIENT.list_collections():
+            for collection in VECTOR_DB_CLIENT.list_collections():
                 if collection_name == collection.name:
                     log.info(f"deleting existing collection {collection_name}")
-                    CHROMA_CLIENT.delete_collection(name=collection_name)
+                    VECTOR_DB_CLIENT.delete_collection(name=collection_name)
 
-        collection = CHROMA_CLIENT.create_collection(name=collection_name)
+        collection = VECTOR_DB_CLIENT.get_or_create_collection(name=collection_name)
 
         embedding_func = get_embedding_function(
             app.state.config.RAG_EMBEDDING_ENGINE,
@@ -1017,18 +1019,17 @@ def store_docs_in_vector_db(
 
         embedding_texts = list(map(lambda x: x.replace("\n", " "), texts))
         embeddings = embedding_func(embedding_texts)
-
-        for batch in create_batches(
-            api=CHROMA_CLIENT,
+        log.info(f"embedding len {len(embeddings)}")
+        collection.add(
             ids=[str(uuid.uuid4()) for _ in texts],
             metadatas=metadatas,
             embeddings=embeddings,
-            documents=texts,
-        ):
-            collection.add(*batch)
+            documents=texts)
 
         return True
     except Exception as e:
+        import traceback
+        log.info(f"exception {e} {traceback.format_exc()}")
         if e.__class__.__name__ == "UniqueConstraintError":
             return True
 
@@ -1398,7 +1399,7 @@ def scan_docs_dir(user=Depends(get_admin_user)):
 
 @app.post("/reset/db")
 def reset_vector_db(user=Depends(get_admin_user)):
-    CHROMA_CLIENT.reset()
+    VECTOR_DB_CLIENT.reset()
 
 
 @app.post("/reset/uploads")
@@ -1439,7 +1440,7 @@ def reset(user=Depends(get_admin_user)) -> bool:
             log.error("Failed to delete %s. Reason: %s" % (file_path, e))
 
     try:
-        CHROMA_CLIENT.reset()
+        VECTOR_DB_CLIENT.reset()
     except Exception as e:
         log.exception(e)
 

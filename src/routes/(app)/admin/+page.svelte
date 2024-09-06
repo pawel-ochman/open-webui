@@ -255,25 +255,17 @@
 					<tr class="bg-white border-b dark:bg-gray-900 dark:border-gray-850 text-xs">
 						<td class="px-3 py-2 min-w-[7rem] w-28">
 							<button
-								class=" flex items-center gap-2 text-xs px-3 py-0.5 rounded-lg {user.role ===
-									'admin' && 'text-sky-600 dark:text-sky-200 bg-sky-200/30'} {user.role ===
-									'user' && 'text-green-600 dark:text-green-200 bg-green-200/30'} {user.role ===
-									'pending' && 'text-gray-600 dark:text-gray-200 bg-gray-200/30'}"
+								class=" flex items-center gap-2 text-xs px-3 py-0.5 rounded-lg text-sky-600 dark:text-sky-200 bg-sky-200/30"
 								on:click={() => {
-									if (user.role === 'user') {
-										updateRoleHandler(user.id, 'admin');
-									} else if (user.role === 'pending') {
-										updateRoleHandler(user.id, 'user');
-									} else {
-										updateRoleHandler(user.id, 'pending');
-									}
+									const roles = $config.roles || []
+									const currentRoleInde = roles.indexOf(user.role);
+									const nextRoleIndex = currentRoleInde >= roles.length - 1 ? 0 : currentRoleInde + 1;
+									updateRoleHandler(user.id, roles[nextRoleIndex]);
 								}}
 							>
 								<div
 									class="w-1 h-1 rounded-full {user.role === 'admin' &&
-										'bg-sky-600 dark:bg-sky-300'} {user.role === 'user' &&
-										'bg-green-600 dark:bg-green-300'} {user.role === 'pending' &&
-										'bg-gray-600 dark:bg-gray-300'}"
+										'bg-sky-600 dark:bg-sky-300'}"
 								/>
 								{$i18n.t(user.role)}</button
 							>
