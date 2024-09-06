@@ -13,6 +13,7 @@ import requests
 import mimetypes
 import shutil
 import inspect
+import uvicorn
 from typing import Optional
 
 from fastapi import FastAPI, Request, Depends, status, UploadFile, File, Form
@@ -470,7 +471,6 @@ async def chat_completion_files_handler(body) -> tuple[dict, dict[str, list]]:
             r=rag_app.state.config.RELEVANCE_THRESHOLD,
             hybrid_search=rag_app.state.config.ENABLE_RAG_HYBRID_SEARCH,
         )
-
         log.debug(f"rag_contexts: {contexts}, citations: {citations}")
 
     return body, {"contexts": contexts, "citations": citations}
@@ -603,6 +603,9 @@ class ChatCompletionMiddleware(BaseHTTPMiddleware):
         modified_body_bytes = json.dumps(body).encode("utf-8")
         # Replace the request body with the modified one
         request._body = modified_body_bytes
+
+        log.info(f"Modified body: {modified_body_bytes}")
+        log.info(f"dumps body: {json.dumps(body)}")
         # Set custom header to ensure content-length matches new body length
         request.headers.__dict__["_list"] = [
             (b"content-length", str(len(modified_body_bytes)).encode("utf-8")),
@@ -2266,3 +2269,6 @@ else:
     log.warning(
         f"Frontend build directory not found at '{FRONTEND_BUILD_DIR}'. Serving API only."
     )
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8080)
