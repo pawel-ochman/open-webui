@@ -1,93 +1,22 @@
-import json
 import uuid
 from langchain_qdrant import QdrantVectorStore
 from langchain_ollama import OllamaEmbeddings
 from langchain_core.documents import Document
-from pydantic import Field
-from pydantic.deprecated.class_validators import root_validator
-
-from langchain_core.embeddings import Embeddings
-from langchain_core.pydantic_v1 import BaseModel
-
-from ollama._client import Client
-from ollama._types import  RequestError, Mapping, Any, Options
-from typing import AnyStr, Optional, Union, Sequence, overload, List
+from typing import List
 
 from apps.rag.vector.clients import VectorClient, VectorCollection
 
 from qdrant_client import QdrantClient
-from qdrant_client.conversions.common_types import CollectionInfo
 from qdrant_client.http.models import VectorParams, Distance
 
 from logging import getLogger
 
+from config import (
+    RAG_EMBEDDING_MODEL,
+    OLLAMA_BASE_URL
+)
+
 log = getLogger(__name__)
-
-
-class OllamaClientFix(Client):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-    def embed(
-            self,
-            model: str = '',
-            input: Union[str, Sequence[AnyStr]] = '',
-            truncate: bool = True,
-            options: Optional[Options] = None,
-            keep_alive: Optional[Union[float, str]] = None,
-    ) -> Mapping[str, Any]:
-        if not model:
-            raise RequestError('must provide a model')
-
-        response = self._request(
-            'POST',
-            '/api/embed',
-            json={
-                'model': model,
-                'input': input,
-                'truncate': truncate,
-                'options': options or {},
-                'keep_alive': keep_alive,
-            },
-        )
-
-        j = response.json()
-
-        return j
-
-class OllamaEmbeddingsFix(Embeddings):
-
-    _client: Client = Field(default=None)
-    model: str = ''
-
-    def __init__(self, model, client: OllamaClientFix):
-        self._client = client
-        self.model = model
-        super().__init__()
-
-    def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        """Embed search docs."""
-        response= self._client.embed(self.model, texts)
-
-        embedded_docs = response["embeddings"]
-
-        return embedded_docs
-
-    def embed_query(self, text: str) -> List[float]:
-        """Embed query text."""
-        return self.embed_documents([text])[0]
-
-    async def aembed_documents(self, texts: List[str]) -> List[List[float]]:
-        """Embed search docs."""
-        embedded_docs = (self._client.embed(self.model, texts))[
-            "embeddings"
-        ]
-        return embedded_docs
-
-    async def aembed_query(self, text: str) -> List[float]:
-        """Embed query text."""
-        return (await self.aembed_documents([text]))[0]
-
 
 class QDrantCollection(VectorCollection):
     def __init__(self, name: str, client: QdrantClient):
@@ -96,9 +25,9 @@ class QDrantCollection(VectorCollection):
         self.store = QdrantVectorStore(
             client=client,
             collection_name=name,
-            embedding=OllamaEmbeddingsFix(
-                model="nomic-embed-text",
-                client=OllamaClientFix(host="172.24.2.24:11434")
+            embedding=OllamaEmbeddings(
+                model=RAG_EMBEDDING_MODEL.value,
+                base_url=OLLAMA_BASE_URL,
             )
         )
 
